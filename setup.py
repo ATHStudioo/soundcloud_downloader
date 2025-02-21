@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="soundcloud_downloader",
-    version="0.1.3", 
+    version="0.1.4", 
     author="ATH_Studioo",
     author_email="ihor6285@gmail.com",  # Ваш email
     description="A library for downloading music from SoundCloud using scdl",
