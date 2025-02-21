@@ -8,8 +8,8 @@ class SoundCloudDownloader:
         output_dir: Optional[str] = None,
         auth_token: Optional[str] = None,
         client_id: Optional[str] = None,
-        name_format: str = "{username} - {title}",
-        playlist_name_format: str = "{tracknumber} - {username} - {title}"
+        name_format: str = "{user[username]} - {title}",  # Updated default format
+        playlist_name_format: str = "{tracknumber} - {user[username]} - {title}"  # Updated default format
     ):
         """
         Initialize the SoundCloud downloader.
@@ -46,16 +46,17 @@ class SoundCloudDownloader:
         overwrite: bool = False,
         only_mp3: bool = False,
         original_art: bool = False,
-        max_items: Optional[int] = None,
+        max_tracks: Optional[int] = None,
         offset: int = 0
     ) -> list[str]:
         """Build the scdl command based on parameters."""
+        print(f"Building command for {action_type} with URL/query: {url_or_query}")
         if action_type == "search" or action_type == "search_only":
             cmd = ["scdl", "-s", url_or_query]
-            if max_items:
-                cmd.extend(["-n", str(max_items)])  # Limit search results
+            if max_tracks:
+                cmd.extend(["-n", str(max_tracks)])  # Limit search results
             if action_type == "search_only":
-                cmd.extend(["--debug"])  # Use debug to get more output for parsing
+                cmd.extend(["--debug"])
         else:
             cmd = ["scdl", "-l", url_or_query]
 
@@ -79,9 +80,9 @@ class SoundCloudDownloader:
                 cmd.append("--onlymp3")
             if original_art:
                 cmd.append("--original-art")
-            if max_items:
-                cmd.extend(["-n", str(max_items)])
-            if offset > 0:
+            if max_tracks and action_type != "search":
+                cmd.extend(["-n", str(max_tracks)])  # Limit number of tracks
+            if offset > 0 and action_type != "search":
                 cmd.extend(["-o", str(offset)])
             if self.output_dir != os.getcwd():
                 cmd.extend(["--path", self.output_dir])
@@ -91,7 +92,7 @@ class SoundCloudDownloader:
             cmd.extend(["--auth-token", self.auth_token])
         if self.client_id:
             cmd.extend(["--client-id", self.client_id])
-        if action_type != "search_only":  # Skip formatting for search-only to avoid downloading
+        if action_type != "search_only":
             cmd.extend(["--name-format", self.name_format])
             cmd.extend(["--playlist-name-format", self.playlist_name_format])
 
@@ -99,9 +100,21 @@ class SoundCloudDownloader:
 
     def _execute_command(self, cmd: list[str]) -> str:
         """Execute the scdl command and return its output."""
+        print(f"Executing command: {' '.join(cmd)}")
         try:
-            result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            return result.stdout + result.stderr  # Include stderr for more info
+            result = subprocess.run(
+                cmd,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30  # Added timeout to prevent hanging
+            )
+            output = result.stdout + result.stderr
+            print("Command output:", output)
+            return output
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(f"scdl timed out after 30 seconds: {e.stderr}")
         except subprocess.CalledProcessError as e:
             error_msg = f"Error executing scdl: {e.stderr}"
             raise RuntimeError(error_msg)
@@ -169,28 +182,7 @@ class SoundCloudDownloader:
         cmd = self._build_command(url, "reposts", max_tracks=max_tracks, offset=offset, **kwargs)
         return self._execute_command(cmd)
 
-    def search_and_download(
-        self,
-        query: str,
-        limit: int = 1,
-        **kwargs
-    ) -> str:
-        """
-        Search for tracks and download the results.
-
-        :param query: Search query (e.g., song title, artist name).
-        :param limit: Number of results to download (default is 1).
-        :param kwargs: Additional parameters (continue_on_error, overwrite, only_mp3, original_art).
-        :return: Command output.
-        """
-        cmd = self._build_command(query, "search", max_items=limit, **kwargs)
-        return self._execute_command(cmd)
-
-    def search(
-        self,
-        query: str,
-        limit: int = 1
-    ) -> List[str]:
+    def search(self, query: str, limit: int = 1) -> List[str]:
         """
         Search for tracks on SoundCloud and return their URLs without downloading.
 
@@ -198,10 +190,9 @@ class SoundCloudDownloader:
         :param limit: Number of results to return (default is 1).
         :return: List of URLs found in the search results.
         """
-        cmd = self._build_command(query, "search_only", max_items=limit)
+        cmd = self._build_command(query, "search_only", max_tracks=limit)
         output = self._execute_command(cmd)
 
-        # Parse output to extract URLs (assuming scdl logs resolved URLs in debug mode)
         urls = []
         for line in output.splitlines():
             if "Search resolved to url" in line:
@@ -214,3 +205,15 @@ class SoundCloudDownloader:
             raise RuntimeError(f"No results found for query: {query}")
         
         return urls
+
+    def search_and_download(self, query: str, limit: int = 1, **kwargs) -> str:
+        """
+        Search for tracks and download the results.
+
+        :param query: Search query (e.g., song title, artist name).
+        :param limit: Number of results to download (default is 1).
+        :param kwargs: Additional parameters (continue_on_error, overwrite, only_mp3, original_art).
+        :return: Command output.
+        """
+        cmd = self._build_command(query, "search", max_tracks=limit, **kwargs)
+        return self._execute_command(cmd)
