@@ -18,6 +18,12 @@
 - `scdl` package (installed automatically as a dependency).
 - Optional: A SoundCloud authentication token for private tracks or extended functionality.
 
+### Install with pip
+Install the latest version directly from PyPI using:
+```bash 
+pip install soundcloud_downloader
+```
+
 ### Install Locally
 
 1. Clone or download the repository:
@@ -176,4 +182,3 @@ Search for tracks and download the results.
 - The `search` method parses `scdl` debug output, which may break if `scdl`'s logging changes.
 - Ensure `scdl` is installed and accessible in your PATH.
 - Authentication (`auth_token`) is optional but required for private tracks.
-
