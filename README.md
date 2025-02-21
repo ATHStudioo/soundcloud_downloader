@@ -19,7 +19,7 @@
 - Optional: A SoundCloud authentication token for private tracks or extended functionality.
 
 ### Install with pip
-Install the latest version directly from PyPI using:
+- Install the latest version directly from PyPI using:
 ```bash 
 pip install soundcloud_downloader
 ```
